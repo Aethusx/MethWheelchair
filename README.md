@@ -1,4 +1,4 @@
-# MethWheelchair 1.14
+# MethWheelchair 1.15
 
 Disables movement keybinds after standing still for at least one frame after Mephistroth finishes casting Shackles of the Legion.<br>
 After the debuff is gone or after 6.5 secs of cast event re-enables keybinds.<br>

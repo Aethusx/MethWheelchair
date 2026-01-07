@@ -435,38 +435,18 @@ end
 
 
 local function GetPlayerFacing()
-	local map
-	if (not MethWheelchairMinimapScanner) then
-		map = CreateFrame("Minimap", "MethWheelchairMinimapScanner", UIParent)
-		map:SetWidth(0)
-		map:SetHeight(0)
-		map:SetPoint("TOPRIGHT", 0, 0)
-		map:Show()
-	else
-		map = MethWheelchairMinimapScanner
-	end
-
-	if (not playerModel) then
-		-- create custom minimap and try to hide everything from player
-		-- needed due to player arrow not updating while original minimap
-		-- is closed or hidden and the worldmap player arrow updates only
-		-- when shown
-		local model;
-		for _,v in ipairs({map:GetChildren()}) do
-			if (v:GetFrameType() == "Model") then
-				model = v
-				if (not model:GetName()) then
-					--Print(model:GetModel())
-					if (strfind(model:GetModel(), "Minimap\\MinimapArrow")) then	
-						playerModel = model
-					end
-					model:SetModelScale(0)
-				end
+	if (not MethWheelchair_MinimapPlayerModel) then
+		for _, v in ipairs({Minimap:GetChildren()}) do
+			if ((v:GetFrameType() == "Model")
+                and (not v:GetName())
+                and strfind(v:GetModel(), "Minimap\\MinimapArrow")
+            ) then
+				MethWheelchair_MinimapPlayerModel = v
 			end
 		end
 	end
 	
-	return playerModel:GetFacing()
+	return MethWheelchair_MinimapPlayerModel:GetFacing()
 end
 
 
