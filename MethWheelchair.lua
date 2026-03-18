@@ -264,6 +264,11 @@ local SettingCheckTimeLimitDuration = 3.0
 local SettingCheckRepliers = {}
 local SettingCheckSetting = nil
 
+local DetectCheckTimeLimit = nil
+local DetectCheckTimeLimitDuration = 3.0
+local DetectCheckRepliers = {}
+local DetectCheckSendToChat = false
+
 
 local Stats = {
     TriggerCount = 0,
@@ -1509,6 +1514,15 @@ function()
                 SendAddonMessage(ADDON_PREFIX, msg, "RAID")
             end
 
+            if (args[3] == "detect") then
+                local requester = args[2]
+                local name = UnitName("PLAYER")
+                local version = GetAddonVersionStr()
+
+                local msg = "answer;" .. requester .. ";detect;" .. name .. ";" .. version .. ";"
+                SendAddonMessage(ADDON_PREFIX, msg, "RAID")
+            end
+
         elseif (args[1] == "answer" and args[2] == UnitName("PLAYER")) then
 
             if (args[3] == "version") then
@@ -1578,6 +1592,12 @@ function()
 
                 local fileName = "MethWheelchair_" .. SafeDateAndTime() .. "_" .. sender
                 ExportFile(fileName, value)
+            end
+
+            if (args[3] == "detect") then
+                local sender = args[4]
+                local version = args[5]
+                DetectCheckRepliers[sender] = version
             end
 
         end
@@ -2301,6 +2321,116 @@ local function HandleSettingCheck()
 end
 
 
+local function HandleDetectCheck()
+    if (DetectCheckTimeLimit and (GetTime() > DetectCheckTimeLimit)) then
+
+        local installed = {}
+        local notInstalled = {}
+        local offline = {}
+
+        for i = 1, GetNumRaidMembers(), 1 do
+            local unit = "RAID" .. i
+            local unitName = UnitName(unit)
+            local classColor = GetClassColor(unit)
+            local _, class = UnitClass(unit)
+
+            local player = {
+                Unit = unit,
+                Class = class,
+                ClassColor = classColor,
+                Name = unitName
+            }
+
+            if (not UnitIsConnected(unit)) then
+                tinsert(offline, player)
+            elseif (DetectCheckRepliers[unitName]) then
+                tinsert(installed, player)
+            else
+                tinsert(notInstalled, player)
+            end
+        end
+
+        -- sort by class, name
+        local function sortByClassName(a, b)
+            if (a.Class ~= b.Class) then
+                return a.Class < b.Class
+            end
+            return a.Name < b.Name
+        end
+
+        tsort(installed, sortByClassName)
+        tsort(notInstalled, sortByClassName)
+        tsort(offline, sortByClassName)
+
+        local numInstalled = tgetn(installed)
+        local numNotInstalled = tgetn(notInstalled)
+        local numOffline = tgetn(offline)
+
+        -- build plain name lists for raid chat
+        local function buildNameList(players)
+            local names = {}
+            for i = 1, tgetn(players), 1 do
+                tinsert(names, players[i].Name)
+            end
+            return tconcat(names, ", ")
+        end
+
+        -- build colored name list for local chat
+        local function buildColoredNameList(players)
+            local parts = {}
+            for i = 1, tgetn(players), 1 do
+                tinsert(parts, "\124cff" .. players[i].ClassColor .. players[i].Name .. "\124r")
+            end
+            return tconcat(parts, ", ")
+        end
+
+        -- display installed
+        if (numInstalled > 0) then
+            local coloredNames = buildColoredNameList(installed)
+            Print("\124cff00ff00Installed\124r (" .. tostring(numInstalled) .. "): " .. coloredNames .. ".")
+        end
+
+        -- display not installed
+        if (numNotInstalled > 0) then
+            local coloredNames = buildColoredNameList(notInstalled)
+            Print("\124cffff0000Not installed\124r (" .. tostring(numNotInstalled) .. "): " .. coloredNames .. ".")
+        end
+
+        -- display offline
+        if (numOffline > 0) then
+            local coloredNames = buildColoredNameList(offline)
+            Print("\124cffaaaaaaOffline\124r (" .. tostring(numOffline) .. "): " .. coloredNames .. ".")
+        end
+
+        if (numNotInstalled == 0 and numOffline == 0) then
+            Print("Everybody in the raid has MethWheelchair installed.")
+        end
+
+        -- send to raid chat
+        if (DetectCheckSendToChat) then
+            local total = GetNumRaidMembers()
+            SendChatMessage("[MethWheelchair] Detect: " .. numInstalled .. "/" .. total .. " installed.", "RAID")
+
+            if (numInstalled > 0) then
+                SendChatMessage("Installed (" .. numInstalled .. "): " .. buildNameList(installed), "RAID")
+            end
+
+            if (numNotInstalled > 0) then
+                SendChatMessage("NOT installed (" .. numNotInstalled .. "): " .. buildNameList(notInstalled), "RAID")
+            end
+
+            if (numOffline > 0) then
+                SendChatMessage("Offline (" .. numOffline .. "): " .. buildNameList(offline), "RAID")
+            end
+        end
+
+        DetectCheckTimeLimit = nil
+        DetectCheckRepliers = {}
+        DetectCheckSendToChat = false
+    end
+end
+
+
 local function GetPlayerPosition()
     -- check if player is moving and try to unbind keybinds if scheduled
     if (SUPERWOW_VERSION and METHWHEELCHAIR_CONFIG.SUPERWOW) then
@@ -2377,6 +2507,7 @@ EventFrame:SetScript("OnUpdate", function()
         HandleSuperWoWVersionCheck()
         HandleUXPSP3Check()
         HandleSettingCheck()
+        HandleDetectCheck()
     end
 
     PreviousPosition_X = px
@@ -2860,6 +2991,34 @@ local function CmdResetTrackersTotal(msg)
 end
 
 
+local function CmdDetect(msg)
+    local cmd = { "detect", "check" }
+    local args = MsgArgs(msg, 2)
+    if (not IsCmd(cmd, args[1])) then return false end
+
+    if (GetNumRaidMembers() == 0) then
+        Print("\124cffff0000You are not in a raid group.\124r")
+        return true
+    end
+
+    DetectCheckTimeLimit = GetTime() + DetectCheckTimeLimitDuration
+    DetectCheckRepliers = {}
+
+    if (args[2] == "chat" or args[2] == "raid") then
+        DetectCheckSendToChat = true
+    else
+        DetectCheckSendToChat = false
+    end
+
+    local playerName = UnitName("PLAYER")
+    local message = "query;" .. playerName .. ";detect;"
+    SendAddonMessage(ADDON_PREFIX, message, "RAID")
+    Print("\124cff00ff00Detecting MethWheelchair in raid...\124r")
+
+    return true
+end
+
+
 local function CmdReload(msg)
     local cmd = { "reload", "rl" }
     local args = MsgArgs(msg, 1)
@@ -2939,6 +3098,8 @@ local function CmdHelp(msg)
     Print("Use '/mw keybinds' to display list of saved keybinds.")
     Print("Use '/mw logininfo' to toggle display of saved keybinds on login.")
     Print("Use '/mw fulltest' to conduct more complex test.")
+    Print("Use '/mw detect' to check who has MethWheelchair installed in raid.")
+    Print("Use '/mw detect chat' to check and send results to raid chat.")
 
     return true
 end
@@ -2963,6 +3124,7 @@ SlashCmdList["METHWHEELCHAIR"] = function(msg)
     if (CmdAutorun(msg)) then return end
     if (CmdJump(msg)) then return end
 
+    if (CmdDetect(msg)) then return end
     if (CmdQuery(msg)) then return end
     if (CmdListen(msg)) then return end
     if (CmdResetTrackers(msg)) then return end

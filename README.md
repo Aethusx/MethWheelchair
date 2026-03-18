@@ -1,4 +1,4 @@
-# MethWheelchair 1.15
+# MethWheelchair 1.16
 
 Disables movement keybinds after standing still for at least one frame after Mephistroth finishes casting Shackles of the Legion.<br>
 After the debuff is gone or after 6.5 secs of cast event re-enables keybinds.<br>
@@ -28,6 +28,8 @@ Use ``/mw autorun`` to toggle unbinding auto run while on Meth platform.<br>
 Use ``/mw jump`` to toggle unbinding jump while on Meth platform.<br>
 Use ``/mw eu`` to toggle unbinding keybinds before shackle cast finishes depending on configured value.<br>
 Use ``/mw eu <number_value>`` to set early unbind value (replace ``<number_value>`` with number between 0.0 and 3.0).<br>
+Use ``/mw detect`` to check who in the raid has MethWheelchair installed.<br>
+Use ``/mw detect chat`` to check and send results to raid chat.<br>
 
 
 ## Known issues
